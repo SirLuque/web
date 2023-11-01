@@ -1,1 +1,238 @@
+<!-- 
+  *****
+  ** Introduction to the Nutanix Frame Session API
+  ** by Jason Thompson - jason.thompson@nutanix.com
+  *****
+-->
 
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Hello, Frame!</title>
+    <script src="https://unpkg.com/@fra.me/terminal-factory@2.48.3/api.js"></script>
+    <style>
+      body {
+        margin: 0;
+        font-size: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        color: #feb17d;
+        height: 100vh;
+        overflow: clip;
+        background: rgb(55, 82, 109);
+        background: linear-gradient(
+          rgba(172, 129, 136, 1),
+          rgba(55, 82, 109, 1)
+        );
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      p {
+        margin-top: 60px;
+        font-size: 2rem;
+        letter-spacing: -1px;
+        font-weight: 400;
+        text-shadow: -5px 5px #ac8188;
+      }
+
+      button#the-clicker {
+        background-color: #6768ab;
+        border: 2px rgba(255, 255, 255, 0.25) solid;
+        border-radius: 5px;
+        padding: 20px;
+        margin-bottom: 20px;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        transition: background-color 0.25s;
+      }
+
+      button#the-clicker:hover {
+        background-color: #7d7fd3;
+        border: 2px white solid;
+      }
+
+      button#the-clicker:disabled {
+        background-color: dimgrey;
+        border-color: darkgrey;
+        cursor: wait;
+      }
+
+      #events {
+        display: flex;
+        flex-wrap: wrap;
+        min-width: 100px;
+        margin-bottom: 60px;
+        width: 100%;
+        padding-left: 10px;
+        border-top: 1px rgba(214, 214, 214, 0.301) solid;
+        padding-top: 20px;
+      }
+
+      #events div:last-child {
+        font-weight: bold;
+        animation: pulse 3s ease infinite alternate;
+        font-style: italic;
+      }
+
+      #events div:last-child:after {
+        content: none !important;
+      }
+
+      #events div {
+        height: 40px;
+        line-height: 40px;
+        display: inline-block;
+        position: relative;
+        background-color: #0d2432;
+        color: white;
+        padding: 0 10px;
+        margin-left: 30px;
+        margin-bottom: 10px;
+      }
+
+      #events div:after {
+        color: #0d2432;
+        border-left: 20px solid;
+        border-top: 20px solid transparent;
+        border-bottom: 20px solid transparent;
+        display: inline-block;
+        content: "";
+        position: absolute;
+        right: -20px;
+        top: 0;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          background-color: #0d2432;
+        }
+
+        50% {
+          background-color: #37526d;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <p>This is a really simple HTML file.</p>
+    <button id="the-clicker" disabled>1-Click simplicity</button>
+    <div id="events">
+      <div>Welcome!</div>
+    </div>
+    <script type="text/javascript">
+      const clicker = document.getElementById("the-clicker");
+      const frameOptions = {
+        serviceUrl: "https://cpanel-backend-prod.frame.nutanix.com/api/graphql",
+        terminalConfigId: "YOUR-TERMINAL-CONFIG-ID",
+        token: "REPLACE-WITH-YOUR-TOKEN",
+      };
+
+      function addEventItem(event) {
+        const eventContainer = document.getElementById("events");
+        const eventDiv = document.createElement("div");
+        eventDiv.innerHTML = event;
+        eventDiv.classList.add("event-item");
+        eventContainer.appendChild(eventDiv);
+      }
+
+      document.addEventListener("DOMContentLoaded", async function () {
+        console.info("This page has fully loaded.");
+        const { TerminalEvent } = FrameTerminalApi;
+        try {
+          const terminal = await FrameTerminalApi.createInstance(frameOptions);
+          const clicker = document.getElementById("the-clicker");
+
+          terminal.bind(TerminalEvent.SESSION_STARTING, function (event) {
+            console.info(
+              "Session is starting! This may take up to 2 minutes..."
+            );
+            addEventItem(
+              "Session is starting! This may take up to 2 minutes..."
+            );
+            clicker.disabled = true;
+          });
+
+          terminal.bind(TerminalEvent.SESSION_STARTED, function (event) {
+            console.info("Session has successfully started!");
+            addEventItem("Session has successfully started!");
+          });
+
+          terminal.bind(TerminalEvent.SESSION_RESUMING, function (event) {
+            console.info("Resuming an existing session!");
+            addEventItem("Resuming an existing session!");
+            clicker.disabled = true;
+          });
+
+          terminal.bind(TerminalEvent.SESSION_RESUMED, function (event) {
+            console.info("Successfully resumed an existing session.");
+            addEventItem("Successfully resumed an existing session.");
+          });
+
+          terminal.bind(TerminalEvent.SESSION_CLOSING, function (event) {
+            console.info("Session is closing!");
+            addEventItem("Session is closing!");
+          });
+
+          terminal.bind(TerminalEvent.SESSION_CLOSED, function (event) {
+            console.info("Session closed!");
+            addEventItem("Session closed!");
+            clicker.disabled = false;
+          });
+
+          terminal.bind(TerminalEvent.SESSION_DISCONNECTED, function (event) {
+            console.info("Session disconnected!");
+            addEventItem("Session disconnected!");
+            clicker.disabled = false;
+          });
+
+          terminal.bind(TerminalEvent.USER_INACTIVE, function (event) {
+            console.info(
+              "Did the user step away? No keyboard or mouse movement received in a while..." +
+                JSON.stringify(event)
+            );
+            addEventItem(
+              "User is a ghost! Keyboard and mouse lay dormant a little too long..."
+            );
+          });
+
+          clicker.addEventListener("click", async function (event) {
+            event.preventDefault();
+            try {
+              const session = await terminal.getOpenSession();
+              if (session && session.state === "OPEN") {
+                await terminal.resume(session.id);
+              } else {
+                await terminal.start();
+              }
+            } catch (error) {
+              addEventItem(`Error: ${error.message}`);
+              console.error(`Something went wrong: ${JSON.stringify(error)}`);
+            }
+          });
+          clicker.disabled = false;
+        } catch (error) {
+          if (error.networkError && error.networkError.statusCode === 401) {
+            console.log("Error: 401 Unauthorized. Token expired.");
+            addEventItem(`Error: JWT is expired or invalid.`);
+          } else if (
+            error.networkError &&
+            error.networkError.statusCode === 403
+          ) {
+            console.log("Error: 403. Forbidden/Permission denied.");
+            addEventItem(
+              `Error: Permissions denied. Make sure you have access to the Account/Launchpad.`
+            );
+          } else {
+            console.error(`Something went wrong: ${error}`);
+            addEventItem(`Error: ${error.message}`);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
